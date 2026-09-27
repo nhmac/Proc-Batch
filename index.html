@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Agrupa os PDFs de etiquetas de uma pasta em batches até ao limite de quantidade.">
+<meta name="theme-color" content="#15171c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone.ico">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>AutoBatch</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url("fonts/Inter_18pt-Regular.ttf") format("truetype"); }
+  @font-face { font-family: "Inter"; font-weight: 600; font-display: swap; src: url("fonts/Inter_18pt-SemiBold.ttf") format("truetype"); }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+<style>
+  /* Tema da linha "Processamento" (processamento_ui.py): só dark mode, por opção */
+  :root {
+    color-scheme: dark;
+    --bg: #15171c;
+    --sidebar: #1c1f26;
+    --card: #232730;
+    --card-hover: #2b303b;
+    --sub: #1a1d23;
+    --linha-alt: #20242c;
+    --borda: #323845;
+    --texto: #f1f3f7;
+    --texto-sec: #a4acbb;
+    --accent: #4c8dff;
+    --accent-texto: #7fb0ff;
+    --accent-suave: #1f3358;
+    --sucesso: #1f9d5a;
+    --sucesso-hover: #1a8550;
+    --aviso: #e0a526;
+    --erro: #e5484d;
+    --trilho: #2f3542;
+    --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font: 14px/1.45 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .app { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100%; }
+
+  /* ---------------------------------------------------------------- Sidebar */
+  .sidebar {
+    background: var(--sidebar);
+    padding: 28px 24px 24px;
+    display: flex; flex-direction: column;
+    position: sticky; top: env(safe-area-inset-top, 0px);
+    height: 100vh; height: 100dvh;
+  }
+  .sidebar h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+  .subtitulo { color: var(--texto-sec); font-size: 13px; }
+  .secao {
+    display: block;
+    margin: 32px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    color: var(--texto-sec); text-transform: uppercase;
+  }
+  .secao + .secao, .grupo + .secao { margin-top: 28px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 40px; border-radius: 6px; cursor: pointer;
+    background: var(--card); border: 1px solid var(--borda); transition: background .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--card-hover); }
+  .btn:disabled { cursor: default; opacity: .55; }
+  .chip { margin-top: 10px; background: var(--sub); border-radius: 8px; padding: 8px 12px; overflow-wrap: anywhere; }
+  .chip .nome { color: var(--texto-sec); }
+  .chip.escolhida .nome { color: var(--texto); }
+  .chip .contagem { color: var(--texto-sec); font-size: 13px; }
+  #limite {
+    width: 100%; height: 40px; border-radius: 6px; text-align: center; font-weight: 600;
+    background: var(--sub); border: 2px solid var(--borda); font-variant-numeric: tabular-nums;
+  }
+  #limite:focus { border-color: var(--accent); outline: none; }
+  .privado { margin-top: 20px; font-size: 12.5px; color: var(--texto-sec); display: flex; gap: 8px; }
+  .privado svg { flex: none; margin-top: 2px; }
+  .rodape { margin-top: auto; display: grid; gap: 12px; }
+  .btn-principal {
+    height: 42px; border: 0; border-radius: 6px; cursor: pointer; width: 100%;
+    background: var(--sucesso); color: #fff; font-size: 15px; font-weight: 600; transition: background .15s;
+  }
+  .btn-principal:hover:not(:disabled) { background: var(--sucesso-hover); }
+  .btn-principal:disabled { background: var(--card); color: var(--texto-sec); cursor: default; }
+  .versao { font-size: 12px; color: var(--texto-sec); text-align: center; opacity: .7; }
+
+  /* -------------------------------------------------------- Área principal */
+  main { padding: 24px 28px 16px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .cabecalho { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cabecalho h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  #estado { color: var(--texto-sec); text-align: right; }
+  #estado[data-tipo="ativo"] { color: var(--accent-texto); }
+  #estado[data-tipo="ok"] { color: var(--sucesso); }
+  #estado[data-tipo="erro"] { color: var(--erro); }
+
+  .barra { height: 6px; border-radius: 3px; background: var(--trilho); overflow: hidden; }
+  .barra > i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--cor, var(--accent)); transition: width .15s; }
+  #progresso { margin-top: -4px; }
+
+  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .stat { padding: 12px 16px; }
+  .stat b { display: block; font-size: 28px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--texto-sec); font-size: 13px; }
+
+  .aviso-exemplo {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-radius: 8px; border: 1px dashed var(--borda); color: var(--texto-sec);
+  }
+  .pill {
+    display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    background: var(--accent-suave); color: var(--accent-texto); white-space: nowrap;
+  }
+  .pill.exemplo { background: #3d2f0c; color: #ffd166; }
+
+  #lista { display: grid; gap: 12px; align-content: start; }
+  .batch { padding: 14px 16px 10px; }
+  .batch .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .batch .total { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .batch .total b { font-weight: 600; }
+  .batch .total span { color: var(--texto-sec); }
+  .ocupacao { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .ocupacao .barra { flex: 1; }
+  .ocupacao em { font-style: normal; font-weight: 600; font-size: 13px; width: 48px; text-align: right; color: var(--cor); font-variant-numeric: tabular-nums; }
+  .intervalo { margin-top: 6px; color: var(--texto-sec); font-size: 13px; overflow-wrap: anywhere; }
+  .link {
+    margin-top: 6px; margin-left: -6px; height: 30px; padding: 0 6px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--accent-texto); font-size: 13px; cursor: pointer;
+  }
+  .link:hover { background: var(--card-hover); }
+  .ficheiros { margin: 4px 0 6px; padding: 6px; background: var(--sub); border-radius: 6px; overflow-x: auto; }
+  .ficheiros div {
+    display: flex; justify-content: space-between; gap: 16px; padding: 3px 8px; border-radius: 4px;
+    font: 13px/20px var(--mono); font-variant-numeric: tabular-nums;
+  }
+  .ficheiros div:nth-child(even) { background: var(--linha-alt); }
+  .ficheiros span:last-child { color: var(--texto-sec); }
+  .ficheiros .destaque span:last-child { color: var(--accent-texto); font-weight: 700; }
+  .vazio { padding: 120px 16px; text-align: center; color: var(--texto-sec); }
+
+  /* Arrastar uma pasta para a janela */
+  .largar {
+    position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+    background: rgba(21, 23, 28, .88); border: 2px dashed var(--accent); pointer-events: none;
+    font-size: 18px; font-weight: 600; color: var(--accent-texto);
+  }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: static; height: auto; padding: 24px 16px; }
+    .rodape { margin-top: 24px; }
+    main { padding: 20px 16px; }
+    .stats { gap: 8px; }
+    .stat { padding: 10px 12px; }
+    .stat b { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <h1>AutoBatch</h1>
+    <div class="subtitulo">Batches por limite de quantidade</div>
+
+    <div class="secao">Pasta</div>
+    <div class="grupo">
+      <button class="btn" id="btn-pasta" type="button">Escolher pasta…</button>
+      <input id="input-pasta" type="file" webkitdirectory multiple hidden>
+      <div class="chip" id="chip">
+        <div class="nome" id="nome-pasta">Nenhuma pasta selecionada</div>
+        <div class="contagem" id="n-pdfs" hidden></div>
+      </div>
+    </div>
+
+    <label class="secao" for="limite">Limite do batch</label>
+    <input id="limite" type="text" inputmode="numeric" value="4500" autocomplete="off">
+
+    <div class="privado">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M4 7V5a4 4 0 0 1 8 0v2M3 7h10v7H3z"/></svg>
+      <span>Os PDFs são lidos neste browser. Nenhum ficheiro é enviado.</span>
+    </div>
+
+    <div class="rodape">
+      <button class="btn-principal" id="btn-processar" type="button">Processar PDFs</button>
+      <div class="versao">Versão web 1.0</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="cabecalho">
+      <h2>Batches</h2>
+      <div id="estado" role="status">Pronto para iniciar</div>
+    </div>
+    <div class="barra" id="progresso" hidden><i></i></div>
+
+    <div class="stats" id="stats">
+      <div class="card stat"><b id="stat-pdfs">0</b><span>PDFs lidos</span></div>
+      <div class="card stat"><b id="stat-batches">0</b><span>Batches</span></div>
+      <div class="card stat"><b id="stat-total">0</b><span>Total geral</span></div>
+    </div>
+
+    <div class="aviso-exemplo" id="aviso-exemplo">
+      <span class="pill exemplo">EXEMPLO</span>
+      <span>Dados fictícios. Escolhe uma pasta e clica em Processar PDFs para ver os teus batches.</span>
+    </div>
+
+    <div id="lista"></div>
+  </main>
+</div>
+<div class="largar" id="largar" hidden>Larga a pasta com os PDFs</div>
+
+<script src="vendor/pdfjs/pdf.min.js"></script>
+
+<script id="logica">
+// Mesma lógica do main.py (AutoBatch em Python). Sem acesso ao DOM, para poder ser testada à parte.
+const Logica = (() => {
+  const AREA_NUMERO = { x0: 494, x1: 500, top: 230, bottom: 240 };
+  const TOLERANCIA = 5;
+  const X_TOLERANCIA = 3; // pdfplumber junta letras em palavras até 3 pt de distância
+
+  // int() do Python: aceita espaços à volta, sinal e "_" entre dígitos
+  function inteiro(txt) {
+    const m = /^\s*([+-]?\d+(?:_\d+)*)\s*$/.exec(txt);
+    return m ? Number(m[1].replace(/_/g, "")) : null;
+  }
+
+  // int(float(txt)) do Python; null se não for número
+  function inteiroDeFloat(txt) {
+    const m = /^\s*([+-]?(?:\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\.\d+(?:_\d+)*)(?:[eE][+-]?\d+(?:_\d+)*)?)\s*$/.exec(txt);
+    if (!m) return null;
+    const v = Math.trunc(Number(m[1].replace(/_/g, "")));
+    return Number.isFinite(v) ? v : null;
+  }
+
+  // Palavras da página com x0 e top medidos como o pdfplumber (top = distância ao topo da página)
+  function palavras(conteudo, view) {
+    const [vx0, , , vy1] = view;
+    const pedacos = [];
+    for (const it of conteudo.items) {
+      if (!it.str || !it.transform) continue;
+      const [, , c, d, e, f] = it.transform;
+      const tamanho = Math.hypot(c, d) || it.height;
+      const descida = conteudo.styles[it.fontName]?.descent ?? -0.2;
+      const top = vy1 - (f + descida * tamanho + tamanho);
+      const n = it.str.length;
+      const re = /\S+/g;
+      let m;
+      while ((m = re.exec(it.str))) {
+        pedacos.push({
+          text: m[0], top,
+          x0: e - vx0 + it.width * (m.index / n),
+          x1: e - vx0 + it.width * ((m.index + m[0].length) / n),
+        });
+      }
+    }
+    // Ordem de leitura; pedaços colados na mesma linha formam uma palavra
+    pedacos.sort((a, b) => Math.abs(a.top - b.top) > X_TOLERANCIA ? a.top - b.top : a.x0 - b.x0);
+    const lista = [];
+    for (const p of pedacos) {
+      const ant = lista[lista.length - 1];
+      if (ant && Math.abs(ant.top - p.top) <= X_TOLERANCIA && p.x0 - ant.x1 <= X_TOLERANCIA && p.x0 >= ant.x0) {
+        ant.text += p.text;
+        ant.x1 = p.x1;
+      } else {
+        lista.push({ ...p });
+      }
+    }
+    return lista;
+  }
+
+  async function extrairValor(dados) {
+    let pdf;
+    try {
+      pdf = await pdfjsLib.getDocument({ data: dados, isEvalSupported: false, disableFontFace: true, verbosity: 0 }).promise;
+      const pagina = await pdf.getPage(1);
+      const conteudo = await pagina.getTextContent();
+      for (const p of palavras(conteudo, pagina.view)) {
+        // Lógica de tolerância de coordenadas
+        if (AREA_NUMERO.x0 - TOLERANCIA <= p.x0 && p.x0 <= AREA_NUMERO.x1 + TOLERANCIA &&
+            AREA_NUMERO.top - TOLERANCIA <= p.top && p.top <= AREA_NUMERO.bottom + TOLERANCIA) {
+          return inteiroDeFloat(p.text.replace(/,/g, ".")) ?? 0;
+        }
+      }
+    } catch (e) {
+      return 0;
+    } finally {
+      if (pdf) pdf.destroy();
+    }
+    return 0;
+  }
+
+  // ficheiros: [{nome, ler: () => Promise<ArrayBuffer>}]
+  async function calcular(ficheiros, limite, progresso = () => {}) {
+    const pdfs = ficheiros.filter(f => f.nome.toLowerCase().endsWith(".pdf"))
+      .sort((a, b) => (a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : 0));
+
+    // Agrupar por prefixo (id_grupo)
+    const grupos = new Map();
+    for (let i = 0; i < pdfs.length; i++) {
+      const id = inteiro(pdfs[i].nome.split("_")[0]);
+      if (id !== null) {
+        const valor = await extrairValor(await pdfs[i].ler());
+        if (!grupos.has(id)) grupos.set(id, []);
+        grupos.get(id).push([pdfs[i].nome, valor]);
+      }
+      progresso((i + 1) / pdfs.length);
+    }
+
+    // Criar batches
+    const batches = [];
+    let atual = [], soma = 0;
+    for (const id of [...grupos.keys()].sort((a, b) => a - b)) {
+      const itens = grupos.get(id);
+      const totalG = itens.reduce((s, [, v]) => s + v, 0);
+      if (soma + totalG > limite && atual.length) {
+        batches.push(atual);
+        atual = [];
+        soma = 0;
+      }
+      atual.push(...itens);
+      soma += totalG;
+    }
+    if (atual.length) batches.push(atual);
+    return batches;
+  }
+
+  return { calcular, extrairValor, inteiro, inteiroDeFloat };
+})();
+</script>
+
+<script>
+(() => {
+  if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "vendor/pdfjs/pdf.worker.min.js";
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const plural = (n, s, p) => (n === 1 ? s : p);
+
+  let ficheiros = [];   // [{nome, ler}]
+  let ocupado = false;
+
+  // Limite lembrado neste browser (só conveniência)
+  try { const g = localStorage.getItem("autobatch.limite"); if (g) $("limite").value = g; } catch (e) {}
+
+  function estado(texto, tipo = "idle") {
+    $("estado").textContent = texto;
+    $("estado").dataset.tipo = tipo;
+  }
+
+  function definirFicheiros(lista, nome) {
+    ficheiros = lista;
+    const n = lista.filter(f => f.nome.toLowerCase().endsWith(".pdf")).length;
+    $("nome-pasta").textContent = nome;
+    $("chip").classList.add("escolhida");
+    $("n-pdfs").textContent = `${n} PDF${plural(n, "", "s")} encontrado${plural(n, "", "s")}`;
+    $("n-pdfs").hidden = false;
+    estado("Pronto para iniciar");
+  }
+
+  // Escolher pasta: só os ficheiros da própria pasta, sem subpastas (como o os.listdir)
+  $("btn-pasta").addEventListener("click", () => $("input-pasta").click());
+  $("input-pasta").addEventListener("change", e => {
+    const todos = [...e.target.files];
+    if (!todos.length) return;
+    const topo = todos.filter(f => (f.webkitRelativePath || f.name).split("/").length <= 2);
+    const pasta = (todos[0].webkitRelativePath || "").split("/")[0] || `${todos.length} ficheiros`;
+    definirFicheiros(topo.map(f => ({ nome: f.name, ler: () => f.arrayBuffer() })), pasta);
+    e.target.value = "";
+  });
+
+  // Arrastar uma pasta (ou PDFs soltos) para a janela
+  let arrastos = 0;
+  addEventListener("dragenter", e => { if (ocupado) return; e.preventDefault(); arrastos++; $("largar").hidden = false; });
+  addEventListener("dragleave", () => { if (--arrastos <= 0) { arrastos = 0; $("largar").hidden = true; } });
+  addEventListener("dragover", e => e.preventDefault());
+  addEventListener("drop", async e => {
+    e.preventDefault();
+    arrastos = 0;
+    $("largar").hidden = true;
+    if (ocupado) return;
+    const entradas = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    const pasta = entradas.length === 1 && entradas[0].isDirectory ? entradas[0] : null;
+    let lista = [];
+    if (pasta) {
+      const leitor = pasta.createReader();
+      for (;;) {
+        const lote = await new Promise((ok, erro) => leitor.readEntries(ok, erro));
+        if (!lote.length) break;
+        lista.push(...lote.filter(x => x.isFile));
+      }
+      lista = lista.map(x => ({ nome: x.name, ler: () => new Promise((ok, erro) => x.file(f => f.arrayBuffer().then(ok, erro), erro)) }));
+    } else {
+      lista = [...e.dataTransfer.files].map(f => ({ nome: f.name, ler: () => f.arrayBuffer() }));
+    }
+    if (lista.length) definirFicheiros(lista, pasta ? pasta.name : `${lista.length} ficheiro${plural(lista.length, "", "s")}`);
+  });
+
+  function setOcupado(sim) {
+    ocupado = sim;
+    $("btn-processar").disabled = sim;
+    $("btn-processar").textContent = sim ? "A processar…" : "Processar PDFs";
+    $("btn-pasta").disabled = sim;
+    $("progresso").hidden = !sim;
+  }
+
+  function progresso(x) { $("progresso").firstElementChild.style.width = `${x * 100}%`; }
+
+  $("btn-processar").addEventListener("click", async () => {
+    if (!ficheiros.length) { estado("Escolhe uma pasta primeiro.", "erro"); return; }
+    const limite = Logica.inteiro($("limite").value);
+    if (limite === null) { estado("Limite inválido", "erro"); return; }
+    try { localStorage.setItem("autobatch.limite", $("limite").value.trim()); } catch (e) {}
+    if (!window.pdfjsLib) { estado("Erro: o leitor de PDF não carregou. Recarrega a página.", "erro"); return; }
+
+    $("lista").replaceChildren();
+    $("stats").hidden = true;
+    $("aviso-exemplo").hidden = true;
+    progresso(0);
+    setOcupado(true);
+    estado("A ler ficheiros… aguarde.", "ativo");
+    try {
+      const batches = await Logica.calcular(ficheiros, limite, progresso);
+      mostrarResultado(batches, limite);
+      const n = batches.length;
+      estado(`Concluído: ${n} batch${plural(n, "", "es")} criado${plural(n, "", "s")}.`, "ok");
+    } catch (e) {
+      estado(`Erro: ${e.message || e}`, "erro");
+    } finally {
+      setOcupado(false);
+    }
+  });
+
+  function mostrarResultado(batches, limite) {
+    $("stat-pdfs").textContent = fmt(batches.reduce((s, b) => s + b.length, 0));
+    $("stat-batches").textContent = fmt(batches.length);
+    $("stat-total").textContent = fmt(batches.reduce((s, b) => s + b.reduce((t, [, v]) => t + v, 0), 0));
+    $("stats").hidden = false;
+    const lista = $("lista");
+    lista.replaceChildren();
+    if (!batches.length) {
+      const vazio = document.createElement("div");
+      vazio.className = "vazio";
+      vazio.textContent = "Nenhum PDF com número no nome. Escolhe outra pasta.";
+      lista.append(vazio);
+    }
+    batches.forEach((b, i) => lista.append(cardBatch(i + 1, b, limite)));
+  }
+
+  function el(tag, props = {}, ...filhos) {
+    const e = Object.assign(document.createElement(tag), props);
+    e.append(...filhos);
+    return e;
+  }
+
+  function cardBatch(indice, dados, limite) {
+    const total = dados.reduce((s, [, v]) => s + v, 0);
+    const ocupacao = limite > 0 ? total / limite : 0;
+    const cor = ocupacao > 1 ? "var(--erro)" : ocupacao >= 0.9 ? "var(--aviso)" : "var(--sucesso)";
+
+    const barra = el("div", { className: "barra" }, el("i"));
+    barra.firstChild.style.width = `${Math.min(ocupacao, 1) * 100}%`;
+    const n = dados.length;
+    const intervalo = n === 1 ? dados[0][0] : `${dados[0][0]}  →  ${dados[n - 1][0]}`;
+
+    const detalhe = el("div", { className: "ficheiros", hidden: true });
+    const botao = el("button", { className: "link", type: "button", textContent: "▸  Ver ficheiros" });
+    botao.setAttribute("aria-expanded", "false");
+    botao.addEventListener("click", () => {
+      if (!detalhe.childElementCount) {
+        for (const [nome, valor] of dados) {
+          detalhe.append(el("div", { className: valor > 1000 ? "destaque" : "" },
+            el("span", { textContent: nome }), el("span", { textContent: fmt(valor) })));
+        }
+      }
+      detalhe.hidden = !detalhe.hidden;
+      botao.textContent = detalhe.hidden ? "▸  Ver ficheiros" : "▾  Ocultar ficheiros";
+      botao.setAttribute("aria-expanded", String(!detalhe.hidden));
+    });
+
+    const card = el("section", { className: "card batch" },
+      el("div", { className: "topo" },
+        el("span", { className: "pill", textContent: `BATCH ${indice}` }),
+        el("span", { className: "total" }, el("b", { textContent: fmt(total) }), el("span", { textContent: ` / ${fmt(limite)}` }))),
+      el("div", { className: "ocupacao" }, barra, el("em", { textContent: `${Math.round(ocupacao * 100)}%` })),
+      el("div", { className: "intervalo", textContent: `${n} ficheiro${plural(n, "", "s")}  ·  ${intervalo}` }),
+      botao, detalhe);
+    card.style.setProperty("--cor", cor);
+    return card;
+  }
+
+  // Estado inicial: um exemplo com dados fictícios, até se escolher uma pasta
+  const exemplo = [
+    [["1000101_500001_label.pdf", 1200], ["1000101_500002_label.pdf", 850], ["1000118_500031_label.pdf", 1640], ["1000124_500040_label.pdf", 420]],
+    [["1000131_500052_label.pdf", 2300], ["1000140_500066_label.pdf", 1150]],
+    [["1000152_500081_label.pdf", 960]],
+  ];
+  mostrarResultado(exemplo, 4500);
+})();
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
