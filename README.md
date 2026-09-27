@@ -1,4 +1,4 @@
-# AutoBatch
+# Proc-Batches
 
 Agrupa os PDFs de etiquetas de uma pasta em batches até ao limite de quantidade.
 

@@ -1,5 +1,5 @@
 // Gerado pelo build_pages.py
-const CACHE = "autobatch-35d0d1080195";
+const CACHE = "autobatch-b1a539e854fe";
 const FICHEIROS = ["./", "fonts/Inter_18pt-Regular.ttf", "fonts/Inter_18pt-SemiBold.ttf", "fonts/OFL.txt", "icon-192.png", "icon-512.png", "icone.ico", "index.html", "manifest.webmanifest", "vendor/pdfjs/LICENSE", "vendor/pdfjs/pdf.min.js", "vendor/pdfjs/pdf.worker.min.js"];
 
 self.addEventListener("install", e => {

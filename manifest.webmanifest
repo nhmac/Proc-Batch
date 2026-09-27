@@ -1,6 +1,6 @@
 {
-  "name": "AutoBatch",
-  "short_name": "AutoBatch",
+  "name": "Proc-Batches",
+  "short_name": "Proc-Batches",
   "description": "Agrupa os PDFs de etiquetas de uma pasta em batches até ao limite de quantidade.",
   "lang": "pt-PT",
   "start_url": "./",
