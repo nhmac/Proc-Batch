@@ -1,4 +1,6 @@
-# Proc-Batches
+<!-- # Proc-Batches
+
+NÃO ALTERAR COMENTARIO
 
 Agrupa os PDFs de etiquetas de uma pasta em batches até ao limite de quantidade.
 
@@ -12,3 +14,5 @@ Processamento_Batches, e o site gera-se com `build_pages.py`.
 
 Terceiros: [pdf.js](https://github.com/mozilla/pdf.js) (Apache 2.0, `vendor/pdfjs/LICENSE`),
 fonte [Inter](https://rsms.me/inter/) (SIL OFL 1.1, `fonts/OFL.txt`).
+
+-->
