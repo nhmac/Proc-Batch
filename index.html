@@ -213,11 +213,6 @@
       <div class="card stat"><b id="stat-total">0</b><span>Total geral</span></div>
     </div>
 
-    <div class="aviso-exemplo" id="aviso-exemplo">
-      <span class="pill exemplo">EXEMPLO</span>
-      <span>Dados fictícios. Escolhe uma pasta e clica em Processar PDFs para ver os teus batches.</span>
-    </div>
-
     <div id="lista"></div>
   </main>
 </div>
@@ -429,7 +424,6 @@ const Logica = (() => {
 
     $("lista").replaceChildren();
     $("stats").hidden = true;
-    $("aviso-exemplo").hidden = true;
     progresso(0);
     setOcupado(true);
     estado("A ler ficheiros… aguarde.", "ativo");
@@ -502,14 +496,6 @@ const Logica = (() => {
     card.style.setProperty("--cor", cor);
     return card;
   }
-
-  // Estado inicial: um exemplo com dados fictícios, até se escolher uma pasta
-  const exemplo = [
-    [["1000101_500001_label.pdf", 1200], ["1000101_500002_label.pdf", 850], ["1000118_500031_label.pdf", 1640], ["1000124_500040_label.pdf", 420]],
-    [["1000131_500052_label.pdf", 2300], ["1000140_500066_label.pdf", 1150]],
-    [["1000152_500081_label.pdf", 960]],
-  ];
-  mostrarResultado(exemplo, 4500);
 })();
 </script>
 
